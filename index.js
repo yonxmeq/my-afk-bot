@@ -78,7 +78,7 @@ client.on('messageCreate', async (message) => {
         }
 
         connectToChannel(voiceChannel);
-        message.reply(`✅ เข้าไปสแตนด์บายในห้อง **${voiceChannel.name}** และเปิดระบบ Auto Reconnect เรียบร้อยแล้ว!`);
+        message.reply(`✅ เข้าไปสแตนด์บายในห้อง **${voiceChannel.name}**`);
     }
 });
 
