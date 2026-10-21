@@ -226,7 +226,7 @@ client.on('messageCreate', async (message) => {
 
     if (command === '!status') {
         if (!connectedTime || !currentConnection) {
-            return message.reply('ℹ️ บอทไม่ได้สแตนด์บายอยู่ในห้องเสียงขณะนี้ครับ');
+            return message.reply('ℹ️บอทไม่ได้สแตนด์บายอยู่ในห้องเสียงขณะนี้ครับ');
         }
 
         const now = new Date();
@@ -247,4 +247,3 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
- อันนี้อ่ะ
