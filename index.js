@@ -2,9 +2,6 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { 
     joinVoiceChannel, 
-    createAudioPlayer, 
-    createAudioResource, 
-    AudioPlayerStatus, 
     VoiceConnectionStatus, 
     entersState 
 } = require('@discordjs/voice');
@@ -13,18 +10,18 @@ const path = require('path');
 const http = require('http');
 
 // ==========================================
-// [ข้อที่ 1] สร้าง Web Server เล็กๆ ไว้เลี้ยง Render ไม่ให้หลับ (Keep-Alive)
+// [ระบบ Keep-Alive] ป้องกัน Render หลับ
 // ==========================================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('ShaneBot 24/7 Voice Service is Active!');
+    res.end('ShaneBot 24/7 Pure AFK Service is Active!');
 }).listen(PORT, () => {
     console.log(`🌐 Keep-Alive Server running on port ${PORT}`);
 });
 
 // ==========================================
-// [ข้อที่ 2] ดักจับ Error รวม ป้องกันบอท Crash ดับกลางอากาศ
+// [ระบบป้องกัน Crash] ดักจับ Error ทั้งหมด
 // ==========================================
 process.on('uncaughtException', (err) => {
     console.error('⚠️ [Uncaught Exception Error]:', err.message);
@@ -46,7 +43,6 @@ const DATA_FILE = path.join(__dirname, 'last_channel.json');
 const AFK_LOG_FILE = path.join(__dirname, 'afk_stats.json');
 
 let currentConnection = null;
-let audioPlayer = null;
 let connectedTime = null;
 const voiceTimeMap = new Map();
 
@@ -62,29 +58,8 @@ function saveAFKStats(data) {
     fs.writeFileSync(AFK_LOG_FILE, JSON.stringify(data, null, 2));
 }
 
-function playAmbientStream(connection) {
-    if (!audioPlayer) {
-        audioPlayer = createAudioPlayer();
-    }
-    const streamUrl = 'https://stream.zeno.fm/f3wvbbqmdg8uv'; 
-    const resource = createAudioResource(streamUrl, { inlineVolume: true });
-    resource.volume?.setVolume(0.15);
-
-    audioPlayer.play(resource);
-    connection.subscribe(audioPlayer);
-
-    audioPlayer.on(AudioPlayerStatus.Idle, () => {
-        setTimeout(() => playAmbientStream(connection), 2000);
-    });
-
-    audioPlayer.on('error', (err) => {
-        console.error('⚠️ [Audio Player Error]:', err.message);
-        setTimeout(() => playAmbientStream(connection), 3000);
-    });
-}
-
 // ==========================================
-// [ข้อที่ 3] ระบบ Auto Reconnect เข้าห้องเสียงสแตนด์บายแบบเข้มงวด
+// [ระบบเชื่อมต่อห้องเสียงแบบนิ่งๆ 24/7]
 // ==========================================
 async function connectToChannel(channel, textChannel = null) {
     const connection = joinVoiceChannel({
@@ -92,7 +67,7 @@ async function connectToChannel(channel, textChannel = null) {
         guildId: channel.guild.id,
         adapterCreator: channel.guild.voiceAdapterCreator,
         selfDeaf: false,
-        selfMute: false,
+        selfMute: true, // ปิดไมค์บอทไว้นิ่งๆ ไม่ส่งเสียง
     });
 
     currentConnection = connection;
@@ -104,13 +79,7 @@ async function connectToChannel(channel, textChannel = null) {
         textChannelId: textChannel ? textChannel.id : null
     }));
 
-    try {
-        playAmbientStream(connection);
-    } catch (e) {
-        console.log('⚠️ ไม่สามารถเล่นเสียง Ambient ได้:', e.message);
-    }
-
-    // ลูปดักจับเน็ตหลุด / สัญญาณขาดหาย
+    // ระบบต่อสายอัตโนมัติทันทีถ้าเน็ตหลุด
     connection.on(VoiceConnectionStatus.Disconnected, async () => {
         try {
             await Promise.race([
@@ -128,14 +97,14 @@ async function connectToChannel(channel, textChannel = null) {
 }
 
 client.once('ready', async () => {
-    console.log(`✅ บอท ${client.user.tag} พร้อมทำงานตลอด 24/7 แล้ว !`);
+    console.log(`✅ บอท ${client.user.tag} พร้อมสแตนด์บาย 24/7 แล้ว!`);
 
     client.user.setPresence({
-        activities: [{ name: 'Streaming @xShaneKaru | !stay 24/7', type: ActivityType.Streaming, url: 'https://www.youtube.com/@xShaneKaru' }],
+        activities: [{ name: '24/7 Voice AFK | !stay', type: ActivityType.Streaming, url: 'https://www.youtube.com/@xShaneKaru' }],
         status: 'online',
     });
 
-    // ยิง Ping ตัวเองทุกๆ 5 นาทีผ่าน Keep-Alive
+    // ยิง Ping ตัวเองทุกๆ 5 นาที
     setInterval(() => {
         const url = process.env.RENDER_EXTERNAL_URL;
         if (url) {
@@ -147,6 +116,7 @@ client.once('ready', async () => {
         }
     }, 5 * 60 * 1000);
 
+    // ฟื้นคืนชีพเข้าห้องเดิมอัตโนมัติหลังรีบูต
     if (fs.existsSync(DATA_FILE)) {
         try {
             const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -154,7 +124,7 @@ client.once('ready', async () => {
             const channel = await guild.channels.fetch(data.channelId);
 
             if (channel) {
-                console.log(`🔄 บอทฟื้นคืนชีพสำเร็จ กำลังกลับเข้าห้อง: ${channel.name}`);
+                console.log(`🔄 บอทกำลังกลับเข้าห้องเดิม: ${channel.name}`);
                 let textChan = null;
                 if (data.textChannelId) {
                     textChan = await guild.channels.fetch(data.textChannelId).catch(() => null);
@@ -163,7 +133,7 @@ client.once('ready', async () => {
                 await connectToChannel(channel, textChan);
 
                 if (textChan) {
-                    textChan.send(`⚡ **[Auto Reconnect Log]** บอทกลับมาสแตนด์บายในห้อง **${channel.name}** เรียบร้อยครับ!`);
+                    textChan.send(`⚡ บอทกลับมาสแตนด์บายในห้อง **${channel.name}** เรียบร้อยครับ!`);
                 }
             }
         } catch (err) {
@@ -172,6 +142,7 @@ client.once('ready', async () => {
     }
 });
 
+// นับเวลา AFK ให้สมาชิกที่เข้ามานั่งด้วย
 client.on('voiceStateUpdate', (oldState, newState) => {
     if (newState.member.user.bot) return;
 
@@ -210,7 +181,7 @@ client.on('messageCreate', async (message) => {
         }
 
         await connectToChannel(voiceChannel, message.channel);
-        message.reply(`✅ เข้าประจำการในห้อง **${voiceChannel.name}** พร้อมระบบป้องกันบอทหลุด 24/7 ครับ!`);
+        message.reply(`✅ เข้าประจำการสแตนด์บายในห้อง **${voiceChannel.name}** แบบนิ่งๆ 24/7 เรียบร้อย!`);
     }
 
     if (command === '!leave') {
@@ -226,7 +197,7 @@ client.on('messageCreate', async (message) => {
 
     if (command === '!status') {
         if (!connectedTime || !currentConnection) {
-            return message.reply('ℹ️บอทไม่ได้สแตนด์บายอยู่ในห้องเสียงขณะนี้ครับ');
+            return message.reply('ℹ️ บอทไม่ได้สแตนด์บายอยู่ในห้องเสียงขณะนี้ครับ');
         }
 
         const now = new Date();
@@ -234,7 +205,7 @@ client.on('messageCreate', async (message) => {
         const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
         const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-        message.reply(`📊 **สถานะบอท ShaneBot:**\n• สแตนด์บายต่อเนื่องมาแล้ว: **${diffHrs} ชั่วโมง ${diffMins} นาที**\n• สถานะระบบ Keep-Alive: **ออนไลน์ 24/7** 🟢`);
+        message.reply(`📊 **สถานะ ShaneBot:**\n• สแตนด์บายต่อเนื่องมาแล้ว: **${diffHrs} ชั่วโมง ${diffMins} นาที**\n• สถานะระบบ: **ออนไลน์ 24/7 (Pure AFK)** 🟢`);
     }
 
     if (command === '!afkstats') {
